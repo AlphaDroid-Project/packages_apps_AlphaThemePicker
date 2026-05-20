@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Axion ThemePicker</string>
+    <string name="app_name">Wallpapers &amp; style</string>
 
     <!-- Common Actions -->
     <string name="apply">Apply</string>
@@ -193,6 +193,7 @@
     <string name="contrast_normal">Normal</string>
     <string name="custom">Custom</string>
     <string name="custom_seed_color_title">Custom Seed Color</string>
+    <string name="default_theme_title">Default</string>
     <string name="customize_palette_title">Customize Your Palette</string>
     <string name="customize_palette_description">
         Personalize your device with colors that match your style
@@ -203,6 +204,7 @@
     <string name="following_wallpaper">Following wallpaper</string>
     <string name="from_wallpaper">From Wallpaper</string>
     <string name="hue">Hue</string>
+    <string name="luminance_title">Luminance</string>
     <string name="pick_from_wallpaper">Pick from Wallpaper</string>
     <string name="selected_color">Selected Color</string>
     <string name="theme_colors">Theme Colors</string>
