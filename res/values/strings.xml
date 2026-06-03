@@ -251,6 +251,7 @@
     <string name="clock_face">Clock face</string>
     <string name="clock_style">Clock Style</string>
     <string name="clock_face_style">Face Style</string>
+    <string name="clock_font">Clock Font</string>
     <string name="clock_size">Clock Size</string>
     <string name="clock_size_default">Default</string>
     <string name="clock_size_large">Large</string>

@@ -18,12 +18,18 @@ package com.android.alpha.themepicker.ui.lockscreen
 
 import android.app.WallpaperManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Color as AndroidColor
+import android.graphics.Typeface
+import android.os.Handler
+import android.os.Looper
+import android.os.UserHandle
 import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -35,8 +41,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,13 +57,23 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.android.alpha.themepicker.R
+import com.android.alpha.themepicker.data.model.OverlayOption
+import com.android.alpha.themepicker.providers.CommonOverlayProvider
 import com.android.alpha.themepicker.ui.components.CommonBottomSheet
 import com.android.alpha.themepicker.ui.components.SheetDimens
 import com.android.alpha.themepicker.ui.dialogs.ColorPickerDialog
+import com.android.customization.model.theme.OverlayManagerCompat
+import com.android.internal.util.alpha.Utils
 import com.android.systemui.shared.clocks.AxClockType
 import com.android.systemui.shared.clocks.ClockSettingsRepository
 import com.android.systemui.shared.clocks.view.AxClockView
@@ -79,6 +97,9 @@ private const val FACE_PREVIEW_SCALE = 0.45f
 private const val DEPTH_SETTINGS_KEY = "ax_depth_clock_enabled"
 private const val DEPTH_ON = "on"
 private const val DEPTH_OFF = "off"
+private const val LOCKSCREEN_CLOCK_FONT_CATEGORY = "android.theme.customization.lockscreen_clock_font"
+private val FontTileWidth = 200.dp
+private val FontTileHeight = 150.dp
 
 @Composable
 fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: () -> Unit) {
@@ -258,6 +279,13 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
                     if (type == AxClockType.NTYPE) isDigitFamily else type == selectedType
                 },
             )
+
+            if (selectedType == AxClockType.SIMPLE) {
+                Spacer(modifier = Modifier.height(20.dp))
+                SectionTitle(stringResource(R.string.clock_font))
+                Spacer(modifier = Modifier.height(8.dp))
+                LockscreenFontRow(context = context, scope = scope)
+            }
 
             if (isDigitFamily && digitFaceTypes.size > 1) {
                 Spacer(modifier = Modifier.height(20.dp))
@@ -1023,4 +1051,152 @@ private fun readClockColor(context: Context): String {
         context.contentResolver,
         ClockSettingsRepository.SETTING_CLOCK_COLOR,
     ) ?: ClockSettingsRepository.COLOR_AUTO
+}
+
+@Composable
+private fun LockscreenFontRow(context: Context, scope: kotlinx.coroutines.CoroutineScope) {
+    val colors = MaterialTheme.colorScheme
+    var fontOptions by remember { mutableStateOf<List<OverlayOption>>(emptyList()) }
+    var showRestartDialog by remember { mutableStateOf(false) }
+    var pendingFontOption by remember { mutableStateOf<OverlayOption?>(null) }
+
+    val overlayProvider = remember {
+        CommonOverlayProvider(
+            context,
+            OverlayManagerCompat(context),
+            LOCKSCREEN_CLOCK_FONT_CATEGORY,
+        )
+    }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val options = overlayProvider.loadOptions()
+            withContext(Dispatchers.Main) { fontOptions = options }
+        }
+    }
+
+    if (fontOptions.isEmpty()) return
+
+    val scrollState = rememberScrollState()
+
+    Row(
+        modifier = Modifier.horizontalScroll(scrollState),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        fontOptions.forEach { option ->
+            val isSelected = option.isActive
+            val borderColor = if (isSelected) colors.primary else Color.Transparent
+            val bgColor = colors.surfaceBright
+
+            val typeface = remember(option.packageName) {
+                val pkg = option.packageName
+                if (pkg == null) {
+                    Typeface.create("google-sans-flex-clock", Typeface.NORMAL)
+                } else {
+                    try {
+                        val overlayRes = context.packageManager
+                            .getResourcesForApplication(pkg)
+                        val resId = overlayRes.getIdentifier(
+                            "config_clockFontFamily", "string", pkg
+                        )
+                        val family = if (resId != 0) overlayRes.getString(resId) else pkg
+                        Typeface.create(family, Typeface.NORMAL)
+                    } catch (_: Exception) {
+                        Typeface.DEFAULT
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .width(FontTileWidth)
+                    .height(FontTileHeight)
+                    .clip(RoundedCornerShape(TileCorner))
+                    .background(bgColor)
+                    .border(TileBorder, borderColor, RoundedCornerShape(TileCorner))
+                    .clickable {
+                        pendingFontOption = option
+                        showRestartDialog = true
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = "10:08",
+                        style = TextStyle(
+                            fontSize = 40.sp,
+                            fontFamily = FontFamily(typeface),
+                            fontWeight = FontWeight.Light,
+                            color = colors.onSurface,
+                            textAlign = TextAlign.Center,
+                        ),
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = option.label,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = TextStyle(
+                            fontSize = 11.sp,
+                            color = colors.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        ),
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
+                }
+            }
+        }
+    }
+
+    if (showRestartDialog && pendingFontOption != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showRestartDialog = false
+                pendingFontOption = null
+            },
+            title = {
+                Text(stringResource(com.android.internal.R.string.systemui_restart_title))
+            },
+            text = {
+                Text(stringResource(com.android.internal.R.string.systemui_restart_message))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val option = pendingFontOption ?: return@TextButton
+                        showRestartDialog = false
+                        pendingFontOption = null
+                        scope.launch(Dispatchers.IO) {
+                            overlayProvider.applyOverlay(option)
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(
+                                    context,
+                                    com.android.internal.R.string.systemui_restart_process,
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                                Handler(Looper.getMainLooper()).postDelayed({
+                                    Utils.restartSystemUI()
+                                }, 2000)
+                            }
+                        }
+                    },
+                ) {
+                    Text(stringResource(com.android.internal.R.string.systemui_restart_yes))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showRestartDialog = false
+                        pendingFontOption = null
+                    },
+                ) {
+                    Text(stringResource(com.android.internal.R.string.systemui_restart_not_now))
+                }
+            },
+        )
+    }
 }
