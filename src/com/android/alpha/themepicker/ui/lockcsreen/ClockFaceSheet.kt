@@ -122,7 +122,7 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
     val selectedType =
         remember(currentClockId) {
             allTypes.firstOrNull { context.resources.getString(it.clockId) == currentClockId }
-                ?: AxClockType.NTYPE
+                ?: AxClockType.SIMPLE
         }
 
     val isDigitFamily =
@@ -142,8 +142,12 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
     }
     val primaryTypes = remember {
         buildList {
+            add(AxClockType.SIMPLE)
             add(AxClockType.NTYPE)
-            addAll(allTypes.filter { it.bitmapFaceStyle == null || it == AxClockType.GRAPHIC })
+            addAll(allTypes.filter {
+                it != AxClockType.SIMPLE && it != AxClockType.NTYPE &&
+                    (it.bitmapFaceStyle == null || it == AxClockType.GRAPHIC)
+            })
         }
     }
 
