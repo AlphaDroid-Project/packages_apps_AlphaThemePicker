@@ -152,7 +152,7 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
             val config = BitmapFaceConfigs.getConfig(style) ?: return@remember false
             config.renderMode !is RenderMode.AnalogClock
         }
-    val hasDateSupport = selectedType.bitmapFaceStyle != null
+    val hasDateSupport = selectedType.bitmapFaceStyle != null || selectedType == AxClockType.SIMPLE
     val supportsColorOverride = selectedType != AxClockType.CYBERPUNK
     val digitFaceTypes = remember {
         allTypes.filter { type ->
@@ -485,7 +485,8 @@ private fun ClockStyleGrid(
                 previewScale = previewScale,
                 settingsKey = settingsKey,
                 onClick = { onSelect(type) },
-                modifier = Modifier.width(tileWidth).height(tileHeight),
+                tileWidth = tileWidth,
+                tileHeight = tileHeight,
             )
         }
     }
@@ -499,6 +500,8 @@ private fun ClockTile(
     previewScale: Float,
     settingsKey: String,
     onClick: () -> Unit,
+    tileWidth: Dp,
+    tileHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -507,16 +510,21 @@ private fun ClockTile(
     val borderColor = if (isSelected) colors.primary else Color.Transparent
     val bgColor = colors.surfaceBright
 
-    Box(
-        modifier =
-            modifier
+    Column(
+        modifier = modifier.width(tileWidth),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(tileHeight)
                 .clip(RoundedCornerShape(TileCorner))
                 .background(bgColor)
                 .border(TileBorder, borderColor, RoundedCornerShape(TileCorner))
                 .clickable { onClick() },
-        contentAlignment = Alignment.Center,
-    ) {
-        key(type, settingsKey) {
+            contentAlignment = Alignment.Center,
+        ) {
+            key(type, settingsKey) {
             val clockView = remember {
                 val inflater = LayoutInflater.from(context)
                 val view = inflater.inflate(type.viewId, null) as AxClockView
@@ -549,6 +557,15 @@ private fun ClockTile(
                 modifier = Modifier.fillMaxWidth().wrapContentHeight().scaledLayout(previewScale),
             )
         }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = context.resources.getString(type.nameRes),
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
