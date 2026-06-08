@@ -72,6 +72,7 @@ import com.android.alpha.themepicker.providers.CommonOverlayProvider
 import com.android.alpha.themepicker.ui.components.CommonBottomSheet
 import com.android.alpha.themepicker.ui.components.SheetDimens
 import com.android.alpha.themepicker.ui.dialogs.ColorPickerDialog
+import com.android.axion.compose.preferences.CustomSeekBar
 import com.android.customization.model.theme.OverlayManagerCompat
 import com.android.internal.util.alpha.Utils
 import com.android.systemui.shared.clocks.AxClockType
@@ -108,8 +109,11 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
 
     val allTypes = remember { AxClockType.entries }
     var currentClockId by remember { mutableStateOf("DEFAULT") }
-    var currentAlignment by remember { mutableStateOf(ClockSettingsRepository.ALIGNMENT_CENTER) }
-    var currentSize by remember { mutableStateOf(ClockSettingsRepository.SIZE_DEFAULT) }
+    var currentSmallAlignment by remember { mutableStateOf(ClockSettingsRepository.ALIGNMENT_CENTER) }
+    var currentLargeAlignment by remember { mutableStateOf(ClockSettingsRepository.ALIGNMENT_CENTER) }
+    var currentSmallScale by remember { mutableFloatStateOf(1f) }
+    var currentLargeScale by remember { mutableFloatStateOf(1f) }
+    var isEditingLargeClock by remember { mutableStateOf(false) }
     var depthEnabled by remember { mutableStateOf(false) }
     var currentDatePosition by remember {
         mutableStateOf(ClockSettingsRepository.DATE_POSITION_ABOVE)
@@ -122,16 +126,20 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
         if (!visible) return@LaunchedEffect
         withContext(Dispatchers.IO) {
             val id = readCurrentClockId(context)
-            val align = readAlignment(context)
-            val size = readSize(context)
+            val smallAlign = readSmallAlignment(context)
+            val largeAlign = readLargeAlignment(context)
+            val smallScale = readSmallScale(context)
+            val largeScale = readLargeScale(context)
             val depth = readDepthEnabled(context)
             val datePos = readDatePosition(context)
             val clockColor = readClockColor(context)
             val liveWp = WallpaperManager.getInstance(context).wallpaperInfo != null
             withContext(Dispatchers.Main) {
                 currentClockId = id
-                currentAlignment = align
-                currentSize = size
+                currentSmallAlignment = smallAlign
+                currentLargeAlignment = largeAlign
+                currentSmallScale = smallScale
+                currentLargeScale = largeScale
                 depthEnabled = depth
                 currentDatePosition = datePos
                 currentClockColor = clockColor
@@ -195,9 +203,14 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
         }
     }
 
-    fun writeAlignment(value: String) {
-        currentAlignment = value
+    fun writeSmallAlignment(value: String) {
+        currentSmallAlignment = value
         scope.launch(Dispatchers.IO) {
+            Settings.Secure.putString(
+                context.contentResolver,
+                ClockSettingsRepository.SETTING_ALIGNMENT_SMALL,
+                value,
+            )
             Settings.Secure.putString(
                 context.contentResolver,
                 ClockSettingsRepository.SETTING_ALIGNMENT,
@@ -206,13 +219,35 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
         }
     }
 
-    fun writeSize(value: String) {
-        currentSize = value
+    fun writeLargeAlignment(value: String) {
+        currentLargeAlignment = value
         scope.launch(Dispatchers.IO) {
             Settings.Secure.putString(
                 context.contentResolver,
-                ClockSettingsRepository.SETTING_SIZE,
+                ClockSettingsRepository.SETTING_ALIGNMENT_LARGE,
                 value,
+            )
+        }
+    }
+
+    fun writeSmallScale(value: Float) {
+        currentSmallScale = value
+        scope.launch(Dispatchers.IO) {
+            Settings.Secure.putInt(
+                context.contentResolver,
+                ClockSettingsRepository.SETTING_SCALE_SMALL,
+                (value * 100).toInt(),
+            )
+        }
+    }
+
+    fun writeLargeScale(value: Float) {
+        currentLargeScale = value
+        scope.launch(Dispatchers.IO) {
+            Settings.Secure.putInt(
+                context.contentResolver,
+                ClockSettingsRepository.SETTING_SCALE_LARGE,
+                (value * 100).toInt(),
             )
         }
     }
@@ -273,7 +308,7 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
                 tileWidth = StyleTileWidth,
                 tileHeight = StyleTileHeight,
                 previewScale = STYLE_PREVIEW_SCALE,
-                settingsKey = "$currentAlignment:$currentSize:$currentClockColor",
+                settingsKey = "$currentSmallAlignment:$currentLargeAlignment:$currentSmallScale:$currentLargeScale:$currentClockColor",
                 onSelect = { writeClockId(it) },
                 isSelectedOverride = { type ->
                     if (type == AxClockType.NTYPE) isDigitFamily else type == selectedType
@@ -298,61 +333,58 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
                     tileWidth = FaceTileWidth,
                     tileHeight = FaceTileHeight,
                     previewScale = FACE_PREVIEW_SCALE,
-                    settingsKey = "$currentAlignment:$currentSize:$currentClockColor",
+                    settingsKey = "$currentSmallAlignment:$currentLargeAlignment:$currentSmallScale:$currentLargeScale:$currentClockColor",
                     onSelect = { writeClockId(it) },
                 )
             }
 
             Spacer(modifier = Modifier.height(20.dp))
-            SectionTitle(stringResource(R.string.clock_size))
+            SectionTitle(stringResource(R.string.clock_mode_selector))
             Spacer(modifier = Modifier.height(8.dp))
             OptionRow(
-                options =
-                    listOf(
-                        OptionItem(
-                            ClockSettingsRepository.SIZE_DEFAULT,
-                            stringResource(R.string.clock_size_default),
-                        ) {
-                            SizeDefaultIcon(it)
-                        },
-                        OptionItem(
-                            ClockSettingsRepository.SIZE_LARGE,
-                            stringResource(R.string.clock_size_large),
-                        ) {
-                            SizeLargeIcon(it)
-                        },
-                    ),
-                selected = currentSize,
-                onSelect = { writeSize(it) },
+                options = listOf(
+                    OptionItem("small", stringResource(R.string.clock_size_small)) { SizeDefaultIcon(it) },
+                    OptionItem("large", stringResource(R.string.clock_size_large)) { SizeLargeIcon(it) }
+                ),
+                selected = if (isEditingLargeClock) "large" else "small",
+                onSelect = { isEditingLargeClock = it == "large" }
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+            SectionTitle(stringResource(R.string.clock_scale))
+            Spacer(modifier = Modifier.height(8.dp))
+            val currentScaleFlow = if (isEditingLargeClock) currentLargeScale else currentSmallScale
+            val scaleMin = 80f
+            val scaleMax = if (isEditingLargeClock) 180f else 140f
+            CustomSeekBar(
+                title = stringResource(R.string.clock_scale),
+                value = (currentScaleFlow * 100f).toInt(),
+                min = scaleMin.toInt(),
+                max = scaleMax.toInt(),
+                interval = 5,
+                defaultValue = 100,
+                continuousUpdates = true,
+                formatValue = { "$it%" },
+                onValueChange = { newValue ->
+                    if (isEditingLargeClock) writeLargeScale(newValue / 100f)
+                    else writeSmallScale(newValue / 100f)
+                }
             )
 
             Spacer(modifier = Modifier.height(20.dp))
             SectionTitle(stringResource(R.string.clock_alignment))
             Spacer(modifier = Modifier.height(8.dp))
             OptionRow(
-                options =
-                    listOf(
-                        OptionItem(
-                            ClockSettingsRepository.ALIGNMENT_LEFT,
-                            stringResource(R.string.clock_align_left),
-                        ) {
-                            AlignLeftIcon(it)
-                        },
-                        OptionItem(
-                            ClockSettingsRepository.ALIGNMENT_CENTER,
-                            stringResource(R.string.clock_align_center),
-                        ) {
-                            AlignCenterIcon(it)
-                        },
-                        OptionItem(
-                            ClockSettingsRepository.ALIGNMENT_RIGHT,
-                            stringResource(R.string.clock_align_right),
-                        ) {
-                            AlignRightIcon(it)
-                        },
-                    ),
-                selected = currentAlignment,
-                onSelect = { writeAlignment(it) },
+                options = listOf(
+                    OptionItem(ClockSettingsRepository.ALIGNMENT_LEFT, stringResource(R.string.clock_align_left)) { AlignLeftIcon(it) },
+                    OptionItem(ClockSettingsRepository.ALIGNMENT_CENTER, stringResource(R.string.clock_align_center)) { AlignCenterIcon(it) },
+                    OptionItem(ClockSettingsRepository.ALIGNMENT_RIGHT, stringResource(R.string.clock_align_right)) { AlignRightIcon(it) },
+                ),
+                selected = if (isEditingLargeClock) currentLargeAlignment else currentSmallAlignment,
+                onSelect = { 
+                    if (isEditingLargeClock) writeLargeAlignment(it)
+                    else writeSmallAlignment(it)
+                },
             )
 
             if (hasDateSupport) {
@@ -1040,16 +1072,34 @@ private fun readCurrentClockId(context: Context): String {
     }
 }
 
-private fun readAlignment(context: Context): String {
+private fun readSmallAlignment(context: Context): String {
     return Settings.Secure.getString(
         context.contentResolver,
-        ClockSettingsRepository.SETTING_ALIGNMENT,
+        ClockSettingsRepository.SETTING_ALIGNMENT_SMALL,
     ) ?: ClockSettingsRepository.ALIGNMENT_CENTER
 }
 
-private fun readSize(context: Context): String {
-    return Settings.Secure.getString(context.contentResolver, ClockSettingsRepository.SETTING_SIZE)
-        ?: ClockSettingsRepository.SIZE_DEFAULT
+private fun readLargeAlignment(context: Context): String {
+    return Settings.Secure.getString(
+        context.contentResolver,
+        ClockSettingsRepository.SETTING_ALIGNMENT_LARGE,
+    ) ?: ClockSettingsRepository.ALIGNMENT_CENTER
+}
+
+private fun readSmallScale(context: Context): Float {
+    return Settings.Secure.getInt(
+        context.contentResolver,
+        ClockSettingsRepository.SETTING_SCALE_SMALL,
+        100
+    ) / 100f
+}
+
+private fun readLargeScale(context: Context): Float {
+    return Settings.Secure.getInt(
+        context.contentResolver,
+        ClockSettingsRepository.SETTING_SCALE_LARGE,
+        100
+    ) / 100f
 }
 
 private fun readDatePosition(context: Context): String {
