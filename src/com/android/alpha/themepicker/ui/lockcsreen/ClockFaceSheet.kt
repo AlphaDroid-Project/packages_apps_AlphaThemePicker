@@ -121,6 +121,7 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
     var currentClockColor by remember { mutableStateOf(ClockSettingsRepository.COLOR_AUTO) }
     var showColorPicker by remember { mutableStateOf(false) }
     var isLiveWallpaper by remember { mutableStateOf(false) }
+    var activeClockFontPkg by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(visible) {
         if (!visible) return@LaunchedEffect
@@ -134,6 +135,8 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
             val datePos = readDatePosition(context)
             val clockColor = readClockColor(context)
             val liveWp = WallpaperManager.getInstance(context).wallpaperInfo != null
+            val overlayProvider = CommonOverlayProvider(context, OverlayManagerCompat(context), LOCKSCREEN_CLOCK_FONT_CATEGORY)
+            val fontPkg = overlayProvider.loadOptions().find { it.isActive }?.packageName
             withContext(Dispatchers.Main) {
                 currentClockId = id
                 currentSmallAlignment = smallAlign
@@ -144,6 +147,7 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
                 currentDatePosition = datePos
                 currentClockColor = clockColor
                 isLiveWallpaper = liveWp
+                activeClockFontPkg = fontPkg
             }
         }
     }
@@ -160,8 +164,10 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
             val config = BitmapFaceConfigs.getConfig(style) ?: return@remember false
             config.renderMode !is RenderMode.AnalogClock
         }
-    val hasDateSupport = selectedType.bitmapFaceStyle != null || selectedType == AxClockType.SIMPLE
-    val supportsColorOverride = selectedType != AxClockType.CYBERPUNK
+    val activeClockFontIsHanged = activeClockFontPkg == "com.android.theme.lockscreen_clock_font.hanged"
+    val hasDateSupport = selectedType.bitmapFaceStyle != null || 
+        (selectedType == AxClockType.SIMPLE && !activeClockFontIsHanged)
+    val supportsColorOverride = selectedType != AxClockType.CYBERPUNK && selectedType != AxClockType.STYLISH_7
     val digitFaceTypes = remember {
         allTypes.filter { type ->
             val style = type.bitmapFaceStyle ?: return@filter false
@@ -230,6 +236,23 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
         }
     }
 
+    fun writeDatePosition(value: String) {
+        currentDatePosition = value
+        scope.launch(Dispatchers.IO) {
+            Settings.Secure.putString(
+                context.contentResolver,
+                ClockSettingsRepository.SETTING_DATE_POSITION,
+                value,
+            )
+        }
+    }
+
+    LaunchedEffect(selectedType, activeClockFontPkg) {
+        if (selectedType == AxClockType.SIMPLE && activeClockFontIsHanged && currentDatePosition == ClockSettingsRepository.DATE_POSITION_ABOVE) {
+            writeDatePosition(ClockSettingsRepository.DATE_POSITION_BELOW)
+        }
+    }
+
     fun writeSmallScale(value: Float) {
         currentSmallScale = value
         scope.launch(Dispatchers.IO) {
@@ -263,16 +286,6 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
         }
     }
 
-    fun writeDatePosition(value: String) {
-        currentDatePosition = value
-        scope.launch(Dispatchers.IO) {
-            Settings.Secure.putString(
-                context.contentResolver,
-                ClockSettingsRepository.SETTING_DATE_POSITION,
-                value,
-            )
-        }
-    }
 
     fun writeClockColor(value: String) {
         currentClockColor = value
@@ -339,53 +352,57 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
             }
 
             Spacer(modifier = Modifier.height(20.dp))
-            SectionTitle(stringResource(R.string.clock_mode_selector))
+            SectionTitle("Dynamic Clock")
             Spacer(modifier = Modifier.height(8.dp))
-            OptionRow(
-                options = listOf(
-                    OptionItem("small", stringResource(R.string.clock_size_small)) { SizeDefaultIcon(it) },
-                    OptionItem("large", stringResource(R.string.clock_size_large)) { SizeLargeIcon(it) }
-                ),
-                selected = if (isEditingLargeClock) "large" else "small",
-                onSelect = { isEditingLargeClock = it == "large" }
-            )
 
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionTitle(stringResource(R.string.clock_scale))
-            Spacer(modifier = Modifier.height(8.dp))
-            val currentScaleFlow = if (isEditingLargeClock) currentLargeScale else currentSmallScale
-            val scaleMin = 80f
-            val scaleMax = if (isEditingLargeClock) 180f else 140f
-            CustomSeekBar(
-                title = stringResource(R.string.clock_scale),
-                value = (currentScaleFlow * 100f).toInt(),
-                min = scaleMin.toInt(),
-                max = scaleMax.toInt(),
-                interval = 5,
-                defaultValue = 100,
-                continuousUpdates = true,
-                formatValue = { "$it%" },
-                onValueChange = { newValue ->
-                    if (isEditingLargeClock) writeLargeScale(newValue / 100f)
-                    else writeSmallScale(newValue / 100f)
-                }
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
+                    .padding(16.dp)
+            ) {
+                OptionRow(
+                    options = listOf(
+                        OptionItem("small", stringResource(R.string.clock_size_small)) { SizeDefaultIcon(it) },
+                        OptionItem("large", stringResource(R.string.clock_size_large)) { SizeLargeIcon(it) }
+                    ),
+                    selected = if (isEditingLargeClock) "large" else "small",
+                    onSelect = { isEditingLargeClock = it == "large" }
+                )
 
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionTitle(stringResource(R.string.clock_alignment))
-            Spacer(modifier = Modifier.height(8.dp))
-            OptionRow(
-                options = listOf(
-                    OptionItem(ClockSettingsRepository.ALIGNMENT_LEFT, stringResource(R.string.clock_align_left)) { AlignLeftIcon(it) },
-                    OptionItem(ClockSettingsRepository.ALIGNMENT_CENTER, stringResource(R.string.clock_align_center)) { AlignCenterIcon(it) },
-                    OptionItem(ClockSettingsRepository.ALIGNMENT_RIGHT, stringResource(R.string.clock_align_right)) { AlignRightIcon(it) },
-                ),
-                selected = if (isEditingLargeClock) currentLargeAlignment else currentSmallAlignment,
-                onSelect = { 
-                    if (isEditingLargeClock) writeLargeAlignment(it)
-                    else writeSmallAlignment(it)
-                },
-            )
+                Spacer(modifier = Modifier.height(20.dp))
+                val currentScaleFlow = if (isEditingLargeClock) currentLargeScale else currentSmallScale
+                val scaleMin = 80f
+                val scaleMax = if (isEditingLargeClock) selectedType.maxScaleLarge else selectedType.maxScaleSmall
+                CustomSeekBar(
+                    title = stringResource(R.string.clock_scale),
+                    value = (currentScaleFlow * 100f).toInt(),
+                    min = scaleMin.toInt(),
+                    max = scaleMax.toInt(),
+                    interval = 5,
+                    defaultValue = 100,
+                    continuousUpdates = true,
+                    formatValue = { "$it%" },
+                    onValueChange = { newValue ->
+                        if (isEditingLargeClock) writeLargeScale(newValue / 100f)
+                        else writeSmallScale(newValue / 100f)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+                OptionRow(
+                    options = listOf(
+                        OptionItem(ClockSettingsRepository.ALIGNMENT_LEFT, stringResource(R.string.clock_align_left)) { AlignLeftIcon(it) },
+                        OptionItem(ClockSettingsRepository.ALIGNMENT_CENTER, stringResource(R.string.clock_align_center)) { AlignCenterIcon(it) },
+                        OptionItem(ClockSettingsRepository.ALIGNMENT_RIGHT, stringResource(R.string.clock_align_right)) { AlignRightIcon(it) },
+                    ),
+                    selected = if (isEditingLargeClock) currentLargeAlignment else currentSmallAlignment,
+                    onSelect = { 
+                        if (isEditingLargeClock) writeLargeAlignment(it)
+                        else writeSmallAlignment(it)
+                    },
+                )
+            }
 
             if (hasDateSupport) {
                 Spacer(modifier = Modifier.height(20.dp))
@@ -1076,7 +1093,7 @@ private fun readSmallAlignment(context: Context): String {
     return Settings.Secure.getString(
         context.contentResolver,
         ClockSettingsRepository.SETTING_ALIGNMENT_SMALL,
-    ) ?: ClockSettingsRepository.ALIGNMENT_CENTER
+    ) ?: ClockSettingsRepository.ALIGNMENT_LEFT
 }
 
 private fun readLargeAlignment(context: Context): String {

@@ -108,7 +108,7 @@ fun LockscreenSection(onOpenFullPreview: (EntryPoint) -> Unit, modifier: Modifie
                     subtitle = stringResource(R.string.choose_your_time_format),
                     icon = Icons.Filled.Schedule,
                     accentColor = colors.secondary,
-                    onClick = { onOpenFullPreview(EntryPoint.DEFAULT) },
+                    onClick = { onOpenFullPreview(EntryPoint.CLOCK) },
                 )
             }
 
@@ -155,7 +155,7 @@ fun LockscreenSection(onOpenFullPreview: (EntryPoint) -> Unit, modifier: Modifie
                         title = stringResource(R.string.clock),
                         icon = Icons.Outlined.Schedule,
                         accentColor = colors.secondary,
-                        onClick = { onOpenFullPreview(EntryPoint.DEFAULT) },
+                        onClick = { onOpenFullPreview(EntryPoint.CLOCK) },
                         modifier = Modifier.weight(1f),
                     )
                 }
