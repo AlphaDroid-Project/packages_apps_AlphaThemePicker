@@ -258,6 +258,8 @@
     <string name="clock_size_large">Large</string>
     <string name="clock_mode_selector">Clock Size &amp; Alignment</string>
     <string name="clock_scale">Scale</string>
+    <string name="clock_offset_horizontal">Horizontal offset</string>
+    <string name="clock_offset_vertical">Vertical offset</string>
     <string name="clock_alignment">Alignment</string>
     <string name="clock_align_left">Left</string>
     <string name="clock_align_center">Center</string>

@@ -113,6 +113,10 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
     var currentLargeAlignment by remember { mutableStateOf(ClockSettingsRepository.ALIGNMENT_CENTER) }
     var currentSmallScale by remember { mutableFloatStateOf(1f) }
     var currentLargeScale by remember { mutableFloatStateOf(1f) }
+    var currentSmallOffsetX by remember { mutableIntStateOf(0) }
+    var currentLargeOffsetX by remember { mutableIntStateOf(0) }
+    var currentSmallOffsetY by remember { mutableIntStateOf(0) }
+    var currentLargeOffsetY by remember { mutableIntStateOf(0) }
     var isEditingLargeClock by remember { mutableStateOf(false) }
     var depthEnabled by remember { mutableStateOf(false) }
     var currentDatePosition by remember {
@@ -131,6 +135,10 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
             val largeAlign = readLargeAlignment(context)
             val smallScale = readSmallScale(context)
             val largeScale = readLargeScale(context)
+            val smallOffsetX = readOffset(context, ClockSettingsRepository.SETTING_OFFSET_X_SMALL)
+            val largeOffsetX = readOffset(context, ClockSettingsRepository.SETTING_OFFSET_X_LARGE)
+            val smallOffsetY = readOffset(context, ClockSettingsRepository.SETTING_OFFSET_Y_SMALL)
+            val largeOffsetY = readOffset(context, ClockSettingsRepository.SETTING_OFFSET_Y_LARGE)
             val depth = readDepthEnabled(context)
             val datePos = readDatePosition(context)
             val clockColor = readClockColor(context)
@@ -143,6 +151,10 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
                 currentLargeAlignment = largeAlign
                 currentSmallScale = smallScale
                 currentLargeScale = largeScale
+                currentSmallOffsetX = smallOffsetX
+                currentLargeOffsetX = largeOffsetX
+                currentSmallOffsetY = smallOffsetY
+                currentLargeOffsetY = largeOffsetY
                 depthEnabled = depth
                 currentDatePosition = datePos
                 currentClockColor = clockColor
@@ -275,6 +287,50 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
         }
     }
 
+    fun writeSmallOffsetX(value: Int) {
+        currentSmallOffsetX = value
+        scope.launch(Dispatchers.IO) {
+            Settings.Secure.putInt(
+                context.contentResolver,
+                ClockSettingsRepository.SETTING_OFFSET_X_SMALL,
+                value,
+            )
+        }
+    }
+
+    fun writeLargeOffsetX(value: Int) {
+        currentLargeOffsetX = value
+        scope.launch(Dispatchers.IO) {
+            Settings.Secure.putInt(
+                context.contentResolver,
+                ClockSettingsRepository.SETTING_OFFSET_X_LARGE,
+                value,
+            )
+        }
+    }
+
+    fun writeSmallOffsetY(value: Int) {
+        currentSmallOffsetY = value
+        scope.launch(Dispatchers.IO) {
+            Settings.Secure.putInt(
+                context.contentResolver,
+                ClockSettingsRepository.SETTING_OFFSET_Y_SMALL,
+                value,
+            )
+        }
+    }
+
+    fun writeLargeOffsetY(value: Int) {
+        currentLargeOffsetY = value
+        scope.launch(Dispatchers.IO) {
+            Settings.Secure.putInt(
+                context.contentResolver,
+                ClockSettingsRepository.SETTING_OFFSET_Y_LARGE,
+                value,
+            )
+        }
+    }
+
     fun writeDepth(enabled: Boolean) {
         depthEnabled = enabled
         scope.launch(Dispatchers.IO) {
@@ -386,6 +442,44 @@ fun ClockFaceSheet(visible: Boolean, heightFraction: Float = 0.65f, onDismiss: (
                     onValueChange = { newValue ->
                         if (isEditingLargeClock) writeLargeScale(newValue / 100f)
                         else writeSmallScale(newValue / 100f)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+                val currentOffsetX = if (isEditingLargeClock) currentLargeOffsetX else currentSmallOffsetX
+                CustomSeekBar(
+                    title = stringResource(R.string.clock_offset_horizontal),
+                    value = currentOffsetX,
+                    min = ClockSettingsRepository.OFFSET_X_MIN,
+                    max = ClockSettingsRepository.OFFSET_X_MAX,
+                    interval = 1,
+                    defaultValue = 0,
+                    continuousUpdates = true,
+                    onValueChange = { newValue ->
+                        if (isEditingLargeClock) writeLargeOffsetX(newValue)
+                        else writeSmallOffsetX(newValue)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+                val currentOffsetY = if (isEditingLargeClock) currentLargeOffsetY else currentSmallOffsetY
+                val offsetYMin =
+                    if (isEditingLargeClock) ClockSettingsRepository.OFFSET_Y_LARGE_MIN
+                    else ClockSettingsRepository.OFFSET_Y_SMALL_MIN
+                val offsetYMax =
+                    if (isEditingLargeClock) ClockSettingsRepository.OFFSET_Y_LARGE_MAX
+                    else ClockSettingsRepository.OFFSET_Y_SMALL_MAX
+                CustomSeekBar(
+                    title = stringResource(R.string.clock_offset_vertical),
+                    value = currentOffsetY,
+                    min = offsetYMin,
+                    max = offsetYMax,
+                    interval = 1,
+                    defaultValue = 0,
+                    continuousUpdates = true,
+                    onValueChange = { newValue ->
+                        if (isEditingLargeClock) writeLargeOffsetY(newValue)
+                        else writeSmallOffsetY(newValue)
                     }
                 )
 
@@ -1117,6 +1211,10 @@ private fun readLargeScale(context: Context): Float {
         ClockSettingsRepository.SETTING_SCALE_LARGE,
         100
     ) / 100f
+}
+
+private fun readOffset(context: Context, key: String): Int {
+    return Settings.Secure.getInt(context.contentResolver, key, 0)
 }
 
 private fun readDatePosition(context: Context): String {
