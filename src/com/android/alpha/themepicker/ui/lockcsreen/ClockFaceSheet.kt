@@ -1098,76 +1098,56 @@ private fun DepthOffIcon(tint: Color) {
 
 @Composable
 private fun DateAboveIcon(tint: Color) {
-    OptionIcon(tint = tint) { color ->
-        val sw = 2.5f.dp.toPx()
-        val thinSw = 1.5f.dp.toPx()
-        val cx = size.width / 2f
-        val inset = 3.dp.toPx()
-        val maxW = size.width - inset * 2
-
-        val dateY = size.height * 0.28f
-        drawLine(
-            color.copy(alpha = 0.5f),
-            Offset(cx - maxW * 0.25f, dateY),
-            Offset(cx + maxW * 0.25f, dateY),
-            thinSw,
-            StrokeCap.Round,
-        )
-
-        val lineY1 = size.height * 0.52f
-        val lineY2 = size.height * 0.72f
-        drawLine(
-            color,
-            Offset(cx - maxW * 0.38f, lineY1),
-            Offset(cx + maxW * 0.38f, lineY1),
-            sw,
-            StrokeCap.Round,
-        )
-        drawLine(
-            color,
-            Offset(cx - maxW * 0.28f, lineY2),
-            Offset(cx + maxW * 0.28f, lineY2),
-            sw,
-            StrokeCap.Round,
-        )
-    }
+    OptionIcon(tint = tint) { color -> drawDatePositionIcon(color, dateOnTop = true) }
 }
 
 @Composable
 private fun DateBelowIcon(tint: Color) {
-    OptionIcon(tint = tint) { color ->
-        val sw = 2.5f.dp.toPx()
-        val thinSw = 1.5f.dp.toPx()
-        val cx = size.width / 2f
-        val inset = 3.dp.toPx()
-        val maxW = size.width - inset * 2
+    OptionIcon(tint = tint) { color -> drawDatePositionIcon(color, dateOnTop = false) }
+}
 
-        val lineY1 = size.height * 0.28f
-        val lineY2 = size.height * 0.48f
-        drawLine(
-            color,
-            Offset(cx - maxW * 0.38f, lineY1),
-            Offset(cx + maxW * 0.38f, lineY1),
-            sw,
-            StrokeCap.Round,
-        )
-        drawLine(
-            color,
-            Offset(cx - maxW * 0.28f, lineY2),
-            Offset(cx + maxW * 0.28f, lineY2),
-            sw,
-            StrokeCap.Round,
-        )
+/**
+ * The date is the subject being positioned, so it is drawn bold/emphasized while the clock lines
+ * are faded — a bold date line above or below two faint clock lines.
+ */
+private fun DrawScope.drawDatePositionIcon(color: Color, dateOnTop: Boolean) {
+    val dateSw = 3f.dp.toPx()
+    val clockSw = 2f.dp.toPx()
+    val cx = size.width / 2f
+    val inset = 3.dp.toPx()
+    val maxW = size.width - inset * 2
 
-        val dateY = size.height * 0.72f
-        drawLine(
-            color.copy(alpha = 0.5f),
-            Offset(cx - maxW * 0.25f, dateY),
-            Offset(cx + maxW * 0.25f, dateY),
-            thinSw,
-            StrokeCap.Round,
-        )
-    }
+    val dateColor = color
+    val clockColor = color.copy(alpha = 0.35f)
+
+    val dateY = if (dateOnTop) size.height * 0.28f else size.height * 0.72f
+    val clockY1 = if (dateOnTop) size.height * 0.52f else size.height * 0.28f
+    val clockY2 = if (dateOnTop) size.height * 0.72f else size.height * 0.48f
+
+    // Date (bold, emphasized — the subject being positioned)
+    drawLine(
+        dateColor,
+        Offset(cx - maxW * 0.3f, dateY),
+        Offset(cx + maxW * 0.3f, dateY),
+        dateSw,
+        StrokeCap.Round,
+    )
+
+    // Clock (faded)
+    drawLine(
+        clockColor,
+        Offset(cx - maxW * 0.38f, clockY1),
+        Offset(cx + maxW * 0.38f, clockY1),
+        clockSw,
+        StrokeCap.Round,
+    )
+    drawLine(
+        clockColor,
+        Offset(cx - maxW * 0.28f, clockY2),
+        Offset(cx + maxW * 0.28f, clockY2),
+        clockSw,
+        StrokeCap.Round,
+    )
 }
 
 private fun readCurrentClockId(context: Context): String {
