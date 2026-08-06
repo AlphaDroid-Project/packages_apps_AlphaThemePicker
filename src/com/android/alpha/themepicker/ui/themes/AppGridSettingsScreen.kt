@@ -79,7 +79,9 @@ import com.android.alpha.themepicker.viewmodel.MainScreenViewModel
 import com.android.customization.model.grid.GridOptionModel
 
 private const val PATH_SIZE = 100f
-private const val SPACE_BETWEEN_ICONS = 6f
+// Share of a cell taken by the icon; the rest is the gap. An absolute gap does not survive denser
+// grids — at 6.dp a side it cancelled the 12.dp cell of 4x4 exactly and that tile drew nothing.
+private const val ICON_CELL_FRACTION = 0.76f
 
 @Composable
 fun AppGridSettingsScreen(
@@ -305,30 +307,30 @@ internal fun GridTileCanvas(
     Canvas(modifier = modifier) {
         val longestSide = maxOf(rows, cols)
         val cellSize = size.width / longestSide
-        val scaleFactor = (cellSize - 2 * SPACE_BETWEEN_ICONS * density) / PATH_SIZE
+        val iconSize = cellSize * ICON_CELL_FRACTION
+        // Inset centres the icon in its cell, so the gap reads the same on every grid.
+        val inset = (cellSize - iconSize) / 2f
+
+        val scaleFactor = iconSize / PATH_SIZE
+        val transformedPath = Path(shapePath)
+        transformedPath.transform(Matrix().apply { setScale(scaleFactor, scaleFactor) })
+        val paint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.color = color.toArgb()
+                style = Paint.Style.FILL
+            }
 
         val xOffset = (size.width - cols * cellSize) / 2
         val yOffset = (size.height - rows * cellSize) / 2
 
         for (r in 0 until rows) {
             for (c in 0 until cols) {
-                val x = xOffset + c * cellSize + SPACE_BETWEEN_ICONS * density
-                val y = yOffset + r * cellSize + SPACE_BETWEEN_ICONS * density
-
-                val transformedPath = Path(shapePath)
-                val scaleMatrix = Matrix()
-                scaleMatrix.setScale(scaleFactor, scaleFactor)
-                transformedPath.transform(scaleMatrix)
+                val x = xOffset + c * cellSize + inset
+                val y = yOffset + r * cellSize + inset
 
                 drawContext.canvas.nativeCanvas.save()
                 drawContext.canvas.nativeCanvas.translate(x, y)
-                drawContext.canvas.nativeCanvas.drawPath(
-                    transformedPath,
-                    Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        this.color = color.toArgb()
-                        style = Paint.Style.FILL
-                    },
-                )
+                drawContext.canvas.nativeCanvas.drawPath(transformedPath, paint)
                 drawContext.canvas.nativeCanvas.restore()
             }
         }
